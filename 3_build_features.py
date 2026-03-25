@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from collections import defaultdict
+from itertools import combinations
 
 # ---------------------------------------------------------------------------
 # CONFIG
@@ -58,6 +59,14 @@ CONFIG = {
 
     # Number of recent matches to use for team form calculation.
     "recent_form_n_matches": 10,
+
+    # Hero synergy: same-team hero pair win rates (chronological, no leakage).
+    "include_synergy": True,
+    "synergy_min_matches": 3,   # min observations before using real rate (else 0.5)
+
+    # Hero counters: radiant_hero vs dire_hero win rates (chronological, no leakage).
+    "include_counters": True,
+    "counter_min_matches": 3,
 }
 
 # ---------------------------------------------------------------------------
@@ -201,7 +210,7 @@ def build_team_target_encoding(matches: list[dict]) -> tuple[dict, dict]:
 # ---------------------------------------------------------------------------
 # CONTEXTUAL FEATURES (chronological — no leakage)
 # ---------------------------------------------------------------------------
-def build_contextual_features(matches: list[dict]) -> tuple[list[dict], dict, dict, dict]:
+def build_contextual_features(matches: list[dict]) -> tuple[list[dict], dict, dict, dict, dict, dict]:
     """
     Compute per-match contextual features that require chronological processing
     so that each match only sees history from prior matches (no leakage).
@@ -211,6 +220,8 @@ def build_contextual_features(matches: list[dict]) -> tuple[list[dict], dict, di
       - Hero experience   : how many times this team has picked each hero
       - Cheese rating     : hero win rate weighted by rarity (global stat)
       - Patch             : numeric patch number
+      - Synergy score     : sum of same-team hero pair win rates
+      - Counter score     : average radiant win rate across all hero matchups
 
     Also returns final-state lookup dicts saved to disk for use at predict time.
     """
@@ -219,6 +230,13 @@ def build_contextual_features(matches: list[dict]) -> tuple[list[dict], dict, di
     n = CONFIG["recent_form_n_matches"]
     team_results  = defaultdict(lambda: deque(maxlen=n))
     team_hero_cnt = defaultdict(lambda: defaultdict(int))
+
+    # Synergy: hero pair win rates (key = sorted tuple of two hero IDs)
+    pair_wins  = defaultdict(int)
+    pair_total = defaultdict(int)
+    # Counters: (radiant_hero, dire_hero) win rates
+    matchup_wins  = defaultdict(int)
+    matchup_total = defaultdict(int)
 
     # --- Global cheese ratings (computed over all matches) ---
     # Cheese = high win rate AND low pick rate relative to other heroes.
@@ -268,6 +286,28 @@ def build_contextual_features(matches: list[dict]) -> tuple[list[dict], dict, di
         r_cheese = sum(cheese_ratings.get(h, 0.0) for h in r_picks)
         d_cheese = sum(cheese_ratings.get(h, 0.0) for h in d_picks)
 
+        # Synergy score — sum of pair win rates for each 2-hero combo on the team
+        syn_min = CONFIG.get("synergy_min_matches", 3)
+        def _pair_rate(h1, h2):
+            key = tuple(sorted([h1, h2]))
+            return pair_wins[key] / pair_total[key] if pair_total[key] >= syn_min else 0.5
+        if CONFIG.get("include_synergy"):
+            r_syn = sum(_pair_rate(h1, h2) for h1, h2 in combinations(r_picks, 2)) if len(r_picks) >= 2 else 0.0
+            d_syn = sum(_pair_rate(h1, h2) for h1, h2 in combinations(d_picks, 2)) if len(d_picks) >= 2 else 0.0
+        else:
+            r_syn = d_syn = 0.0
+
+        # Counter score — average radiant win rate across all 25 hero matchups
+        cnt_min = CONFIG.get("counter_min_matches", 3)
+        def _matchup_rate(rh, dh):
+            key = (rh, dh)
+            return matchup_wins[key] / matchup_total[key] if matchup_total[key] >= cnt_min else 0.5
+        if CONFIG.get("include_counters") and r_picks and d_picks:
+            rates = [_matchup_rate(rh, dh) for rh in r_picks for dh in d_picks]
+            r_counter = sum(rates) / len(rates)
+        else:
+            r_counter = 0.5
+
         per_match.append({
             "radiant_recent_form":   r_form,
             "dire_recent_form":      d_form,
@@ -280,6 +320,11 @@ def build_contextual_features(matches: list[dict]) -> tuple[list[dict], dict, di
             "dire_cheese_score":     d_cheese,
             "cheese_score_diff":     r_cheese - d_cheese,
             "patch":                 float(match.get("patch") or 0),
+            "radiant_synergy_score": r_syn,
+            "dire_synergy_score":    d_syn,
+            "synergy_diff":          r_syn - d_syn,
+            "radiant_counter_score": r_counter,
+            "counter_diff":          r_counter - 0.5,
         })
 
         # Update state AFTER recording (no leakage)
@@ -290,6 +335,25 @@ def build_contextual_features(matches: list[dict]) -> tuple[list[dict], dict, di
             team_hero_cnt[r_id][h] += 1
         for h in d_picks:
             team_hero_cnt[d_id][h] += 1
+
+        # Update synergy pair stats
+        for h1, h2 in combinations(r_picks, 2):
+            key = tuple(sorted([h1, h2]))
+            pair_total[key] += 1
+            if win:
+                pair_wins[key] += 1
+        for h1, h2 in combinations(d_picks, 2):
+            key = tuple(sorted([h1, h2]))
+            pair_total[key] += 1
+            if not win:
+                pair_wins[key] += 1
+
+        # Update counter matchup stats
+        for rh in r_picks:
+            for dh in d_picks:
+                matchup_total[(rh, dh)] += 1
+                if win:
+                    matchup_wins[(rh, dh)] += 1
 
     log.info(f"Contextual features built for {len(per_match)} matches.")
 
@@ -306,7 +370,20 @@ def build_contextual_features(matches: list[dict]) -> tuple[list[dict], dict, di
         for tid, hero_counts in team_hero_cnt.items()
     }
 
-    return per_match, team_form, team_hero_exp, cheese_ratings
+    # Final-state synergy/counter lookup tables for prediction time
+    synergy_rates = {
+        f"{h1}_{h2}": {"wins": pair_wins[k], "total": pair_total[k],
+                       "win_rate": round(pair_wins[k] / pair_total[k], 4)}
+        for k in pair_total for h1, h2 in [k]
+    }
+    counter_rates = {
+        f"{rh}_{dh}": {"wins": matchup_wins[(rh, dh)], "total": matchup_total[(rh, dh)],
+                       "win_rate": round(matchup_wins[(rh, dh)] / matchup_total[(rh, dh)], 4)}
+        for (rh, dh) in matchup_total
+    }
+    log.info(f"Synergy pairs: {len(synergy_rates)}, Counter matchups: {len(counter_rates)}")
+
+    return per_match, team_form, team_hero_exp, cheese_ratings, synergy_rates, counter_rates
 
 
 # ---------------------------------------------------------------------------
@@ -377,6 +454,11 @@ def match_to_feature_vector(
             else:
                 features[f"pick_order_{pos}_hero"] = 0.0
                 features[f"pick_order_{pos}_team"] = -1.0
+        # Last pick advantage: picking last = counter-pick opportunity
+        if picks_in_order:
+            features["radiant_has_last_pick"] = 1.0 if picks_in_order[-1].get("team") == 0 else 0.0
+        else:
+            features["radiant_has_last_pick"] = 0.0
 
     # --- Contextual features (recent form, hero exp, cheese, patch) ---
     if contextual:
@@ -421,7 +503,7 @@ def main():
     # Build encoders
     hero_index = build_hero_index(matches)
     radiant_enc, dire_enc, global_mean = build_team_target_encoding(matches)
-    contextual_list, team_form, team_hero_exp, cheese_ratings = build_contextual_features(matches)
+    contextual_list, team_form, team_hero_exp, cheese_ratings, synergy_rates, counter_rates = build_contextual_features(matches)
 
     # Build feature matrix
     log.info("Building feature vectors...")
@@ -481,6 +563,14 @@ def main():
     with open(processed_dir / "hero_cheese_ratings.json", "w") as f:
         json.dump({str(k): v for k, v in cheese_ratings.items()}, f, indent=2)
     log.info(f"Saved cheese ratings to {processed_dir / 'hero_cheese_ratings.json'}")
+
+    with open(processed_dir / "hero_synergy_rates.json", "w") as f:
+        json.dump(synergy_rates, f, indent=2)
+    log.info(f"Saved {len(synergy_rates)} synergy pairs to {processed_dir / 'hero_synergy_rates.json'}")
+
+    with open(processed_dir / "hero_counter_rates.json", "w") as f:
+        json.dump(counter_rates, f, indent=2)
+    log.info(f"Saved {len(counter_rates)} counter matchups to {processed_dir / 'hero_counter_rates.json'}")
 
     # Summary
     log.info(f"\nClass balance: {df['radiant_win'].mean():.3f} Radiant win rate")

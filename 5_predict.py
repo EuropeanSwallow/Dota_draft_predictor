@@ -34,8 +34,8 @@ CONFIG = {
     "raw_dir": "D:/Dota 2 python data/raw",
     "models_dir": "models",
 
-    # Which model to use for predictions. Options: "lightgbm", "logistic_regression", "mlp"
-    "default_model": "lightgbm_model",
+    # Which model to use for predictions. Options: "lightgbm_model", "logistic_regression", or "catboost_model"
+    "default_model": "catboost_model",
 }
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

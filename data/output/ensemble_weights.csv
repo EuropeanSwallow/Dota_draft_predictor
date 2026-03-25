@@ -1,0 +1,4 @@
+base_model,weight
+lr,0.422188
+lgbm,1.786949
+catboost,0.863648
