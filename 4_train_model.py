@@ -93,7 +93,7 @@ CONFIG = {
     # Requires: pip install optuna
     # tune_hyperparams: runs tuning before final training (slow — allow ~10 min).
     "tune_hyperparams": False,
-    "tune_n_trials": 50,
+    "tune_n_trials": 75,
 
     # Toggle models to train
     "train_logistic": True,
@@ -105,11 +105,11 @@ CONFIG = {
     # CatBoost hyperparameters
     "catboost_params": {
         "iterations": 500,
-        "learning_rate": 0.07677207126105631,
-        "depth": 7,
-        "l2_leaf_reg": 5.759249054093001,
-        "random_strength": 1.8855305207245203,
-        "bagging_temperature": 0.9983204363421997,
+        "learning_rate": 0.020437282515862368,
+        "depth": 5,
+        "l2_leaf_reg": 1.7807149950087737,
+        "random_strength": 1.7288720201606376,
+        "bagging_temperature": 0.0006085719830883907,
         "random_seed": 42,
         "verbose": 0,
     },
@@ -117,14 +117,14 @@ CONFIG = {
     # LightGBM hyperparameters (good starting defaults for this task)
     "lgbm_params": {
         "n_estimators": 500,
-        "learning_rate": 0.02129815994437246,
-        "num_leaves": 176,
-        "min_child_samples": 75,
-        "feature_fraction": 0.773879804957494,
-        "bagging_fraction": 0.5436365304404521,
+        "learning_rate": 0.07195867632603964,
+        "num_leaves": 21,
+        "min_child_samples": 8,
+        "feature_fraction": 0.8724533229741058,
+        "bagging_fraction": 0.9305912005596285,
         "bagging_freq": 5,
-        "reg_alpha": 2.0000284783779885e-06,
-        "reg_lambda": 0.008132359679748647,
+        "reg_alpha": 2.026174200327079e-08,
+        "reg_lambda": 4.1923252080016614e-08,
         "random_state": 42,
         "n_jobs": -1,
         "verbose": -1,

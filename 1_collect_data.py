@@ -48,7 +48,7 @@ CONFIG = {
     # Only download matches on or after this date (YYYY-MM-DD).
     # Saves API calls by skipping old matches entirely.
     # Set to None to download all matches.
-    "min_date": "2023-01-01",
+    "min_date": "2024-01-01",
 
     # Minimum match ID to fetch. Match IDs are sequential so this is a fast
     # pre-filter that requires no API call — IDs below this are skipped instantly.
@@ -59,7 +59,7 @@ CONFIG = {
     # Minimum league ID to scan. League IDs are sequential (higher = newer).
     # Leagues below this ID are skipped before any API call is made.
     # ~14000 corresponds to early 2023 (TI12 era). Set to None to disable.
-    "min_league_id": 16000,
+    "min_league_id": 17500,
 
     # OpenDota API key (optional but raises rate limits significantly).
     # Get one free at https://www.opendota.com/api-keys

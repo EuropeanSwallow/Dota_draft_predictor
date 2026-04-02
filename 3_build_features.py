@@ -38,8 +38,8 @@ CONFIG = {
     "raw_dir": "D:/Dota 2 python data/raw",
 
     # Toggle optional feature groups
-    "include_draft_order": True,   # Adds pick-order features (10 extra columns)
-    "include_bans": True,          # Adds ban vector (N_heroes columns)
+    "include_draft_order": False,   # Adds pick-order features (10 extra columns)
+    "include_bans": False,          # Adds ban vector (N_heroes columns)
 
     # Minimum matches a team must appear in to get a real target encoding.
     # Teams below this threshold fall back to the global mean win rate.
@@ -47,25 +47,25 @@ CONFIG = {
 
     # Patch filter: only use matches from the last N patches.
     # Set to None to use all patches.
-    "last_n_patches": 3,
+    "last_n_patches": None,
 
     # Drop matches where either team's Elo is flagged as unreliable.
     # Set to False to keep all matches.
-    "require_reliable_elo": False,
+    "require_reliable_elo": True,
 
     # Date filter: only use matches on or after this date (YYYY-MM-DD).
     # Set to None to use all matches.
-    "min_date": "2023-01-01",
+    "min_date": "2026-01-01",
 
     # Number of recent matches to use for team form calculation.
-    "recent_form_n_matches": 10,
+    "recent_form_n_matches": 20,
 
     # Hero synergy: same-team hero pair win rates (chronological, no leakage).
-    "include_synergy": True,
+    "include_synergy": False,
     "synergy_min_matches": 3,   # min observations before using real rate (else 0.5)
 
     # Hero counters: radiant_hero vs dire_hero win rates (chronological, no leakage).
-    "include_counters": True,
+    "include_counters": False,
     "counter_min_matches": 3,
 }
 
