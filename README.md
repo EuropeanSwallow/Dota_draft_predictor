@@ -235,10 +235,10 @@ Falls back to 0.5 if a matchup has been seen fewer than 3 times.
 
 | Model | Accuracy | AUC | Log Loss |
 |---|---|---|---|
-| Logistic Regression | 0.6231 | 0.6790 | 0.6875 |
-| LightGBM | 0.6420 | 0.7081 | 0.6214 |
-| CatBoost | 0.6810 | 0.7225 | 0.6114 |
-| Ensemble | 0.6608 | 0.7187 | 0.6256 |
+| Logistic Regression | 0.6143 | 0.6677 | 0.6614 |
+| LightGBM | 0.6076 | 0.6683 | 0.6502 |
+| CatBoost | 0.6267 | 0.6781 | 0.6442 |
+| Ensemble | 0.6314 | 0.6801 | 0.6439 |
 
 ---
 
